@@ -4,6 +4,8 @@ using UnityEngine;
 using Emgu.CV;
 using Emgu.CV.CvEnum;
 using System.Drawing;
+using System.IO;
+using System;
 using Emgu.CV.Structure;
 using Emgu.CV.Util;
 
@@ -51,6 +53,14 @@ public class Exemple : MonoBehaviour {
     AudioSource audio;
 
     public GameObject particle;
+    public GameObject baguette;
+
+    private CascadeClassifier _frontFacesCascadeClassifier;
+    private string _absolutePathToSmileCascadeClassifier = "D:\\Gamagora\\Interface\\Interface\\Assets\\haarcascade_frontalface_alt.xml";
+    private Rectangle[] _frontFaces;
+    private int MIN_FACE_SIZE = 50;
+    private int MAX_FACE_SIZE = 500;
+    Quaternion baguetteAngle;
 
     VideoCapture webcam;
     //VideoWriter writer;
@@ -58,10 +68,10 @@ public class Exemple : MonoBehaviour {
 	// Use this for initialization
 	void Start () {
         webcam = new VideoCapture(0);
+        //webcam.ImageGrabbed += new EventHandler(_handleWebcamQueryFrame);
         isFiring = false;
-        audio = GetComponent<AudioSource>();          
-        
-        //webcam = new VideoCapture("D:\\Gamagora\\Interface\\Interface\\Assets\\ST.mkv");
+        audio = GetComponent<AudioSource>();
+        baguetteAngle = baguette.transform.rotation;
 
         //testé avec .avi mais des erreurs lors de la sauvegarde
         //writer = new VideoWriter("D:/test.mp4", 30, new Size(300,300),true);
@@ -69,28 +79,64 @@ public class Exemple : MonoBehaviour {
 	
 	// Update is called once per frame
 	void Update () {
+        ColorObjectDetection();
+        //FaceDetection();        
+    }
+
+    private void OnDestroy()
+    {
+        CvInvoke.DestroyAllWindows();
+    }
+
+    private void FaceDetection()
+    {       
+        if (webcam.IsOpened)
+        {
+            webcam.Grab();               
+        }
+    }
+
+    private void _handleWebcamQueryFrame(object sender, EventArgs e)
+    {
+        if (webcam.IsOpened)
+        {            
+            Mat image = new Mat();
+            Mat imageGray = new Mat();
+            webcam.Retrieve(image);
+            _frontFacesCascadeClassifier = new CascadeClassifier(_absolutePathToSmileCascadeClassifier);
+            _frontFaces = _frontFacesCascadeClassifier.DetectMultiScale(image: image, scaleFactor: 1.1, minNeighbors: 5, minSize: new Size(MIN_FACE_SIZE, MIN_FACE_SIZE), maxSize: new Size(MAX_FACE_SIZE, MAX_FACE_SIZE));
+            CvInvoke.CvtColor(image, imageGray, ColorConversion.Bgr2Gray);            
+
+            foreach(Rectangle face in _frontFaces){
+                CvInvoke.Rectangle(image, face, new MCvScalar(0, 180, 0), 5);
+            }
+            CvInvoke.Flip(image, image, FlipType.Horizontal);
+            CvInvoke.Imshow("Ma tete", image);
+        }
+        
+    }
+
+    private void ColorObjectDetection()
+    {
 
         image = webcam.QueryFrame();
+        Mat imageBis = webcam.QueryFrame();
         imageBlur = webcam.QueryFrame();
         imageMedianBlur = webcam.QueryFrame();
         imageGaussianBlur = webcam.QueryFrame();
 
-        elemntStruct = CvInvoke.GetStructuringElement(ElementShape.Ellipse, new Size(3,3), new Point(1,1));
+        elemntStruct = CvInvoke.GetStructuringElement(ElementShape.Ellipse, new Size(3, 3), new Point(1, 1));
 
         seuilBas = new Hsv(MinH, MinS, MinV);
-        seuilHaut = new Hsv(MaxH, MaxS, MaxV);
-
-        // Miroir de l'image
-        CvInvoke.Flip(image,image,FlipType.Horizontal);
-        CvInvoke.Imshow("", image);
+        seuilHaut = new Hsv(MaxH, MaxS, MaxV);       
+       
         //CvInvoke.CvtColor(image, image, ColorConversion.Bgr2Gray);
         CvInvoke.CvtColor(image, image, ColorConversion.Bgr2Hsv);
         CvInvoke.MedianBlur(image, image, kSize);
         Image<Hsv, byte> imageHsv = image.ToImage<Hsv, byte>();
-        CvInvoke.Imshow("Seuil", imageHsv);
         Mat imGray = imageHsv.InRange(seuilBas, seuilHaut).Mat;
 
-        
+
         CvInvoke.Erode(imGray, imGray, elemntStruct, new Point(1, 1), 3, BorderType.Default, new MCvScalar());
         CvInvoke.Dilate(imGray, imGray, elemntStruct, new Point(1, 1), 3, BorderType.Default, new MCvScalar());
 
@@ -98,7 +144,7 @@ public class Exemple : MonoBehaviour {
 
         biggestContourArea = 0;
         biggestContoursIndex = 0;
-        for (int i=0; i < contours.Size; i++)
+        for (int i = 0; i < contours.Size; i++)
         {
             if (CvInvoke.ContourArea(contours[i]) > biggestContourArea)
             {
@@ -107,26 +153,34 @@ public class Exemple : MonoBehaviour {
                 biggestContourArea = CvInvoke.ContourArea(contours[i]);
             }
         }
-        
+
         CvInvoke.DrawContours(imGray, contours, biggestContoursIndex, new MCvScalar(150, 150, 0), 5);
         CvInvoke.DrawContours(imageHsv, contours, biggestContoursIndex, new MCvScalar(150, 0, 0), 5);
-        CvInvoke.Imshow("Seuil", imGray);
-        
-        //if ((biggestContourAreaOld != 0 ) && (biggestContourArea > (biggestContourAreaOld - (biggestContourArea/2))))
-        if(!isFiring && biggestContourArea > 30000)
+        CvInvoke.DrawContours(imageBis, contours, biggestContoursIndex, new MCvScalar(150, 0, 0), 5);
+        //CvInvoke.Imshow("Seuil", imGray);
+
+        //if ((biggestContourAreaOld != 0 ) && (biggestContourArea > (biggestContourAreaOld - (biggestContourArea/2))))        
+
+        if (!isFiring && biggestContourArea > 30000)
         {
             isFiring = true;
             Debug.Log("Boule de Feu");
             audio.Play();
-            GameObject clone = Instantiate(particle, transform.position, transform.rotation);            
-            //clone.transform.position += clone.transform.forward * 1.0f * Time.deltaTime;
+            GameObject clone = Instantiate(particle, transform.position, transform.rotation);
+            baguette.transform.Rotate(new Vector3(80,0,0));
+            baguette.transform.Rotate(Vector3.down * Time.deltaTime, Space.World);
+
             Debug.Log(clone.transform.position);
-
-        } else if (biggestContourArea < 3000)
-        {
-            isFiring = false;
         }
-
+        else if (biggestContourArea < 3000)
+        {
+            if(baguette.transform.rotation != baguetteAngle)
+            {
+                baguette.transform.Rotate(new Vector3(-80, 0, 0));
+                baguetteAngle = baguette.transform.rotation;    
+            }                
+            isFiring = false;            
+        }         
         biggestContourAreaOld = biggestContourArea;
 
 
@@ -137,14 +191,10 @@ public class Exemple : MonoBehaviour {
         CvInvoke.Imshow("Mon image Blur", imageBlur);
         CvInvoke.Imshow("Mon image Median", imageMedianBlur);
         CvInvoke.Imshow("Mon image Gaussian", imageGaussianBlur);*/
-        CvInvoke.Imshow("Mon image", imageHsv);
-
-        CvInvoke.Resize(image, image, new Size(300,300));
+        //CvInvoke.Imshow("Mon image", imageHsv);
+        CvInvoke.Flip(imageBis, imageBis, FlipType.Horizontal);
+        CvInvoke.Imshow("Flipendo", imageBis);
+        CvInvoke.Resize(image, image, new Size(300, 300));
         //writer.Write(image);
-	}
-
-    private void OnDestroy()
-    {
-        CvInvoke.DestroyAllWindows();
     }
 }

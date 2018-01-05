@@ -8,17 +8,26 @@ public class Fireball : MonoBehaviour {
     public GameObject fieryParticle;
     public GameObject smokeParticle;
     public GameObject explosionParticle;
+    private bool isColliding = false;
 
-    /*private void OnCollisionEnter(Collision collision)
+    private void OnCollisionEnter(Collision collision)
     {
+        isColliding = true;
         fieryParticle.SetActive(false);
         smokeParticle.SetActive(false);
-        explosionParticle.SetActive(true);
+        explosionParticle.SetActive(true);        
         rgbd.constraints = RigidbodyConstraints.FreezeAll;
-    }*/
+        Destroy(this.gameObject);
+    }
 
     private void Update()
     {
-        transform.position += transform.forward * 5.0f * Time.deltaTime;
+        if(!isColliding)
+            transform.position += transform.forward * 20.0f * Time.deltaTime;
+    }
+
+    private void OnDestroy()
+    {
+        //WaitForSeconds(2);
     }
 }
