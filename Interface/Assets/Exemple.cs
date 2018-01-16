@@ -65,8 +65,8 @@ public class Exemple : MonoBehaviour {
     VideoCapture webcam;
     //VideoWriter writer;
 
-	// Use this for initialization
-	void Start () {
+    // Use this for initialization
+    void Start() {
         webcam = new VideoCapture(0);
         //webcam.ImageGrabbed += new EventHandler(_handleWebcamQueryFrame);
         isFiring = false;
@@ -76,9 +76,9 @@ public class Exemple : MonoBehaviour {
         //testé avec .avi mais des erreurs lors de la sauvegarde
         //writer = new VideoWriter("D:/test.mp4", 30, new Size(300,300),true);
     }
-	
-	// Update is called once per frame
-	void Update () {
+
+    // Update is called once per frame
+    void Update() {
         ColorObjectDetection();
         //FaceDetection();        
     }
@@ -89,31 +89,31 @@ public class Exemple : MonoBehaviour {
     }
 
     private void FaceDetection()
-    {       
+    {
         if (webcam.IsOpened)
         {
-            webcam.Grab();               
+            webcam.Grab();
         }
     }
 
     private void _handleWebcamQueryFrame(object sender, EventArgs e)
     {
         if (webcam.IsOpened)
-        {            
+        {
             Mat image = new Mat();
             Mat imageGray = new Mat();
             webcam.Retrieve(image);
             _frontFacesCascadeClassifier = new CascadeClassifier(_absolutePathToSmileCascadeClassifier);
             _frontFaces = _frontFacesCascadeClassifier.DetectMultiScale(image: image, scaleFactor: 1.1, minNeighbors: 5, minSize: new Size(MIN_FACE_SIZE, MIN_FACE_SIZE), maxSize: new Size(MAX_FACE_SIZE, MAX_FACE_SIZE));
-            CvInvoke.CvtColor(image, imageGray, ColorConversion.Bgr2Gray);            
+            CvInvoke.CvtColor(image, imageGray, ColorConversion.Bgr2Gray);
 
-            foreach(Rectangle face in _frontFaces){
+            foreach (Rectangle face in _frontFaces) {
                 CvInvoke.Rectangle(image, face, new MCvScalar(0, 180, 0), 5);
             }
             CvInvoke.Flip(image, image, FlipType.Horizontal);
             CvInvoke.Imshow("Ma tete", image);
         }
-        
+
     }
 
     private void ColorObjectDetection()
@@ -128,8 +128,8 @@ public class Exemple : MonoBehaviour {
         elemntStruct = CvInvoke.GetStructuringElement(ElementShape.Ellipse, new Size(3, 3), new Point(1, 1));
 
         seuilBas = new Hsv(MinH, MinS, MinV);
-        seuilHaut = new Hsv(MaxH, MaxS, MaxV);       
-       
+        seuilHaut = new Hsv(MaxH, MaxS, MaxV);
+
         //CvInvoke.CvtColor(image, image, ColorConversion.Bgr2Gray);
         CvInvoke.CvtColor(image, image, ColorConversion.Bgr2Hsv);
         CvInvoke.MedianBlur(image, image, kSize);
@@ -167,21 +167,23 @@ public class Exemple : MonoBehaviour {
             Debug.Log("Boule de Feu");
             audio.Play();
             GameObject clone = Instantiate(particle, transform.position, transform.rotation);
-            baguette.transform.Rotate(new Vector3(80,0,0));
+            baguette.transform.Rotate(new Vector3(80, 0, 0));
             baguette.transform.Rotate(Vector3.down * Time.deltaTime, Space.World);
 
             Debug.Log(clone.transform.position);
         }
         else if (biggestContourArea < 3000)
         {
-            if(baguette.transform.rotation != baguetteAngle)
+            if (baguette.transform.rotation != baguetteAngle)
             {
                 baguette.transform.Rotate(new Vector3(-80, 0, 0));
-                baguetteAngle = baguette.transform.rotation;    
-            }                
-            isFiring = false;            
-        }         
+                baguetteAngle = baguette.transform.rotation;
+            }
+            isFiring = false;
+        }
         biggestContourAreaOld = biggestContourArea;
+
+        calculPosBaguette();
 
 
         /*CvInvoke.Blur(image, imageBlur, new Size(5, 5), new Point(1,1), BorderType.Default);
@@ -194,7 +196,23 @@ public class Exemple : MonoBehaviour {
         //CvInvoke.Imshow("Mon image", imageHsv);
         CvInvoke.Flip(imageBis, imageBis, FlipType.Horizontal);
         CvInvoke.Imshow("Flipendo", imageBis);
-        CvInvoke.Resize(image, image, new Size(300, 300));
+        //CvInvoke.Resize(image, image, new Size(300, 300));
         //writer.Write(image);
+    }
+
+    private void calculPosBaguette(){
+        // retrieve the position of the object in the player hand, using the centroid of the biggest contour
+        // the position is normalized in camera space (from -1 to +1)
+        if(biggestContours != null)
+        {
+            MCvMoments moments = CvInvoke.Moments(biggestContours);
+            float objectPosition_x = (-1.0f + 2.0f * (float)(moments.M10 / moments.M00) / 640);
+            float objectPosition_y = (+1.0f - 2.0f * (float)(moments.M01 / moments.M00) / 480);
+            if (!float.IsNaN(objectPosition_x))
+            {
+                Debug.Log(objectPosition_x);
+                baguette.transform.position = new Vector3(-objectPosition_x, baguette.transform.position.y, baguette.transform.position.z);
+            }                
+        }              
     }
 }
